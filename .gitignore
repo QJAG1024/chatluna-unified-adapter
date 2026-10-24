@@ -22,3 +22,5 @@ tsconfig.temp.json
 
 # runtime model-catalog cache (written under ctx.baseDir, not in the repo)
 data/
+
+# a nested lockfile breaks workspace resolution in the host repo

@@ -103,6 +103,56 @@ modelOverrides:
 `supportImageInput` / `supportAudioInput`，最后是保守默认值——与该生态现有适配器
 行为一致。
 
+## 在本地 koishi 里开发
+
+和 `external/` 里其他插件（如 emojiluna）一样，把仓库放进 koishi 工作区的
+`external/` 下即可，工作区的 `external/*` glob 会自动把它登记为一个 workspace：
+
+```bash
+cd /path/to/koishi-dev
+git clone <this repo> external/chatluna-unified-adapter
+yarn install                    # 登记 workspace，node_modules 里出现软链
+cd external/chatluna-unified-adapter && yarn build
+```
+
+要点：
+
+- **必须是真实目录，不能是符号链接。** Node 会按真实路径解析模块，软链接指向
+  仓库外部时，插件就看不到 koishi 宿主装在 `koishi-dev/node_modules` 里的
+  `koishi` 与 `koishi-plugin-chatluna`，要么报 `Cannot find module 'koishi'`，
+  要么解析到自己私有的第二份 `koishi`（两份 `Service` 类，注册会失败）。
+- **不要在插件目录里保留 `yarn.lock` 或 `node_modules`。** 嵌套的 lockfile 会让
+  yarn 拒绝解析这个 workspace（`This package doesn't seem to be present in your
+  lockfile`）。
+- 插件的依赖（`@chatluna/v1-shared-adapter`、`@langchain/core` 等）由工作区统一
+  提升，插件自身不需要单独安装。
+
+然后在 koishi.yml 里挂实例：
+
+```yaml
+plugins:
+  chatluna:yx7byp: {}
+
+  chatluna-unified-adapter:uni1:
+    platform: ds-chat
+    protocol: chat
+    apiKeys:
+      - - sk-xxx
+        - https://dashscope.aliyuncs.com/compatible-mode/v1
+        - true
+
+  chatluna-unified-adapter:uni2:
+    platform: ds-msg
+    protocol: messages
+    apiKeys:
+      - - sk-xxx
+        - https://dashscope.aliyuncs.com/apps/anthropic/v1
+        - true
+    modelsURL: https://dashscope.aliyuncs.com/compatible-mode/v1/models
+```
+
+`platform` 必须两个实例各不相同——它就是模型前缀。
+
 ## 开发
 
 ```bash
