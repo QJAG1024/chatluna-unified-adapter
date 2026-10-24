@@ -349,7 +349,12 @@ t2  各实例按自己的 refreshInterval 注册 setInterval
 
 ### 5.6 匹配
 
-按顺序尝试：精确 id → 小写 → 去 `vendor/` 前缀 → 去 `-YYYYMMDD` 后缀。
+按顺序尝试：精确 id → 小写 → 去 `vendor/` 前缀 → 去快照日期后缀。
+
+日期后缀有两种写法：`-20250929`（Anthropic 等）与 `-2025-09-29`（百炼等）。
+**两种都要剥**——models.dev 把同一个模型的快照记在无日期的 id 下，只剥一种会让
+整批带斜杠日期的模型掉进 200k 兜底。实测在 180 个模型的端点上，修正前
+catalog 命中 82、修正后 104。
 4059 条上实测 61 个真实 id（qwen/claude/gpt/glm/kimi/doubao/hunyuan/ernie/
 step/embedding）：精确命中 42，经小写/去前缀归一化再 +3，未命中 16
 （集中在 hunyuan / ernie / step / yi / spark / bge / `text-embedding-v3`）。
@@ -590,6 +595,7 @@ export type UnifiedProtocol = 'chat' | 'responses' | 'messages'
 | `scripts/probe.ts` | 发现层对真实端点、元数据匹配 | 见下 |
 | `scripts/harness.cjs` | 真 koishi 启动、实例模型数、能力、缓存 | 见下 |
 | `scripts/chat.cjs` | 真实对话一轮（三种协议 × 流式/非流式 × 工具调用） | 见下 |
+| `scripts/audit.mjs` | 每个模型的元数据来自哪一层（catalog/heuristic/fallback/override） | 见下 |
 
 发现层实测：`{data:[...]}` / `models/<id>` 前缀 / `{models:[...]}` /
 `{results:[...]}` / 裸数组 / 404 / 不可解析 七种形态均按预期；
@@ -605,8 +611,36 @@ export type UnifiedProtocol = 'chat' | 'responses' | 'messages'
 流式与非流式都通；工具调用在两种 wire 上分别产出 `call_*` 与 `toolu_*` id；
 usage 的 `cache_read` / `reasoning` 字段正确透传。
 
-过程中修掉两个真实缺陷：发现请求没带鉴权（全部 401）、
-`shared-adapter` 的非流式路径残留 `stream_options` 被上游拒绝。
+过程中修掉三个真实缺陷：发现请求没带鉴权（全部 401）、
+`shared-adapter` 的非流式路径残留 `stream_options` 被上游拒绝、
+catalog 只剥 `-YYYYMMDD` 而漏掉 `-YYYY-MM-DD`（导致整批模型掉进 200k 兜底）。
+
+### 元数据覆盖的真实分布（`scripts/audit.mjs`）
+
+一个 180 模型的端点，修正日期后缀后：
+
+| | 数量 | 说明 |
+|---|---|---|
+| catalog 命中 | 104 | 上下文/输出/模态来自 models.dev |
+| fallback | 76 | 未命中，走 `getModelMaxContextSizeByName` 与默认值 |
+
+76 个未命中里，按名字分类：
+
+| 类别 | 数量 | 说明 |
+|---|---|---|
+| 对话模型 | 39 | 多为老型号（`qwen-7b-chat`、`qwen1.5-*`）与专有型号（`gui-plus`、`tongyi-*`）；models.dev 未收录 |
+| 实时/omni | 15 | `*-realtime`、`*-omni-*`，走独立 wire，不适用于对话端点 |
+| 语音 | 10 | `tts` / `asr` / `speech` |
+| 图像生成 | 4 | `qwen-image-*`、`z-image-*` |
+| 翻译 | 3 | `qwen-mt-*` |
+| embedding / rerank | 3 | 走 `/embeddings`、`/rerank` |
+| OCR | 2 | |
+
+**结论**：catalog 命中率约 58%，未命中的主体是端点上"顺带列出"的非对话模型。
+这些模型在 ChatLuna 里一律被登记成 `ModelType.llm`（catalog 未命中时无法判断
+类型），选中它们会失败——这是**已知并接受**的行为，因为：
+判断类型只能靠名字猜测，而本项目明确禁止新增启发式（AGENTS.md）。用户可用
+`modelOverrides` 显式标注类型，或用 `blacklistModels` 过滤。
 
 ---
 
