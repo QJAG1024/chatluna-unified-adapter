@@ -596,6 +596,7 @@ export type UnifiedProtocol = 'chat' | 'responses' | 'messages'
 | `scripts/harness.cjs` | 真 koishi 启动、实例模型数、能力、缓存 | 见下 |
 | `scripts/chat.cjs` | 真实对话一轮（三种协议 × 流式/非流式 × 工具调用） | 见下 |
 | `scripts/audit.mjs` | 每个模型的元数据来自哪一层（catalog/heuristic/fallback/override） | 见下 |
+| `scripts/vision.cjs` | 图片输入在两种 wire 上是否真的到达模型 | 见下 |
 
 发现层实测：`{data:[...]}` / `models/<id>` 前缀 / `{models:[...]}` /
 `{results:[...]}` / 裸数组 / 404 / 不可解析 七种形态均按预期；
@@ -635,6 +636,20 @@ catalog 只剥 `-YYYYMMDD` 而漏掉 `-YYYY-MM-DD`（导致整批模型掉进 20
 | 翻译 | 3 | `qwen-mt-*` |
 | embedding / rerank | 3 | 走 `/embeddings`、`/rerank` |
 | OCR | 2 | |
+
+### 图片输入
+
+`scripts/vision.cjs` 把一张 `image_url` content part 直接喂给模型，绕过 koishi 的
+元素拦截器（那条路径只对不支持图片的模型打 warn，不拦），所以测的就是 wire 本身：
+
+| 实例 | 结果 |
+|---|---|
+| `chat`（qwen3.8-flash） | 纯色图 → `"Red"`，2662 ms |
+| `messages`（同一模型） | 同一张图 → `"Red"`，3093 ms |
+| `messages`（上蓝下黄） | → `"Blue yellow"`，2992 ms |
+
+最后一条是关键：模型读出了**两个区域**，说明图片字节真的到了模型，不是被上游
+静默丢弃后模型瞎猜。
 
 **结论**：catalog 命中率约 58%，未命中的主体是端点上"顺带列出"的非对话模型。
 这些模型在 ChatLuna 里一律被登记成 `ModelType.llm`（catalog 未命中时无法判断
