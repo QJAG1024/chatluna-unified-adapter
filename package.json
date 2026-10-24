@@ -29,13 +29,14 @@
     },
     "homepage": "https://github.com/QJAG1024/chatluna-unified-adapter",
     "scripts": {
-        "build": "atsc -b && node scripts/build.mjs",
-        "build:dev": "atsc -b && node scripts/build.mjs --dev",
+        "build": "atsc -b --force && node scripts/build.mjs",
+        "build:dev": "atsc -b --force && node scripts/build.mjs --dev",
         "fetch-catalog": "node scripts/fetch-catalog.mjs",
         "probe": "tsx scripts/probe.ts",
         "typecheck": "tsc -b",
         "lint": "eslint src scripts --ext=ts,mjs",
-        "lint-fix": "eslint src scripts --ext=ts,mjs --fix"
+        "lint-fix": "eslint src scripts --ext=ts,mjs --fix",
+        "clean": "tsc -b --clean && rm -rf lib"
     },
     "engines": {
         "node": ">=18.0.0"
