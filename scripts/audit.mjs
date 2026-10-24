@@ -30,8 +30,7 @@ const host = createRequire(HOST)
 const { App } = host('koishi')
 const memory = host('@koishijs/plugin-database-memory').default
 const chatluna = host('koishi-plugin-chatluna')
-const { getModelMaxContextSizeByName, supportImageInput, supportAudioInput } =
-    host('@chatluna/v1-shared-adapter')
+const { getModelMaxContextSizeByName } = host('@chatluna/v1-shared-adapter')
 const plugin = host(resolve('lib/index.cjs'))
 
 const file = process.argv.slice(2)[0]
