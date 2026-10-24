@@ -19,3 +19,6 @@ tsconfig.temp.json
 
 .VSCodeCounter
 .yarn/install-state.gz
+
+# runtime model-catalog cache (written under ctx.baseDir, not in the repo)
+data/
