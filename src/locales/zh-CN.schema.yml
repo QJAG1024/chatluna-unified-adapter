@@ -1,0 +1,58 @@
+$inner:
+    - $desc: '基础'
+      platform: '适配器的平台名，同时是模型前缀（如 `bailian/qwen-plus`）。同一插件可挂多个实例，各自用不同的名字。'
+      protocol:
+          $desc: '本实例使用的 wire 协议。一个实例只讲一种协议，不做协议间转换。'
+          $inner:
+              - 'Chat Completions（OpenAI 兼容）'
+              - 'Responses（OpenAI）'
+              - 'Messages（Anthropic）'
+
+    - $desc: '端点与凭据'
+      apiKeys:
+          $desc: 'API Key 与请求地址列表。请求地址需包含版本路径，如 `https://dashscope.aliyuncs.com/compatible-mode/v1`。'
+          $inner:
+              - 'API Key'
+              - 'API 请求地址'
+              - '是否启用此配置'
+      authHeader:
+          $desc: '鉴权头形态。relay 常常要求与官方 API 不同的形态。'
+          $inner:
+              - '仅 Authorization: Bearer'
+              - '仅 x-api-key'
+              - '两者都发送'
+      headers:
+          $desc: '额外的请求头（如 `anthropic-beta`、自定义 UA）。同名的默认头会被覆盖。'
+          $inner:
+              - '请求头名称'
+              - '请求头值'
+
+    - $desc: '模型列表'
+      pullModels: '是否从端点拉取模型列表。关闭后仅使用下方手动填写的模型。'
+      modelsURL: '模型列表地址。填写后只问这一个地址，适用于列表不在端点 base 下的上游（如百炼的 Anthropic 端点不提供 `/models`，可填其 compatible-mode 的列表地址）。留空则使用端点自身的 base。'
+      modelsProbe: '当 `base/models` 无响应时额外尝试 `base/v1/models`（修正 base 少写一层版本路径的情况）。'
+      blacklistModels:
+          $desc: '关键词黑名单。ID 中含任一关键词的模型不会出现在列表里。'
+          $inner:
+              - '关键词'
+      modelOverrides:
+          $desc: '按模型 ID 的覆写。键存在即会注入该模型（即使端点没有列出它）；未填写的字段仍然从 models.dev 获取，不会被这里的空值覆盖。'
+
+    - $desc: '模型元数据'
+      metadata:
+          enabled: '是否使用 models.dev 的模型元数据（上下文长度、输出上限、视觉/工具/思考能力与模型类型）。关闭后全部走 ChatLuna 既有的推断与默认值。'
+          sources:
+              $desc: '元数据来源，按顺序尝试。默认 `models.dev`，也可填入返回同构数据的 `https://` 地址。'
+              $inner:
+                  - '来源（models.dev 或 URL）'
+          refreshOnStart: '启动（或插件重载）时拉取一次最新数据。失败则沿用上一份。同一进程内的多个实例只会拉取一次。'
+          refreshInterval: '定时刷新间隔，单位秒。`0` 表示只在启动时拉取一次。'
+          timeout: '单次拉取的超时时间，单位毫秒。超时后使用本地缓存。'
+          fillCapabilities: '是否用元数据填充模型能力（视觉、思考等）。关闭后只填充上下文与输出上限。'
+
+    - $desc: '模型设置'
+      maxContextRatio: '最大上下文使用比例（0~1）。例如 0.35 表示最多使用模型上下文窗口的 35%。'
+      temperature: '回复的随机性程度，数值越高，回复越随机。'
+      presencePenalty: '重复惩罚系数，数值越高，越不易重复出现已出现过至少一次的 Token（范围：-2~2，步长：0.1）。'
+      frequencyPenalty: '频率惩罚系数，数值越高，越不易重复出现次数较多的 Token（范围：-2~2，步长：0.1）。'
+      nonStreaming: '强制使用非流式请求。'

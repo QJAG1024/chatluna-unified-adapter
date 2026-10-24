@@ -1,0 +1,58 @@
+$inner:
+    - $desc: 'Basics'
+      platform: 'The adapter platform name, also the model prefix (e.g. `bailian/qwen-plus`). One plugin can be mounted several times, each with its own name.'
+      protocol:
+          $desc: 'The wire protocol this instance speaks. One instance speaks one protocol; nothing is translated between them.'
+          $inner:
+              - 'Chat Completions (OpenAI-compatible)'
+              - 'Responses (OpenAI)'
+              - 'Messages (Anthropic)'
+
+    - $desc: 'Endpoint and credentials'
+      apiKeys:
+          $desc: 'API keys and their base URLs. The base must include the version segment, e.g. `https://dashscope.aliyuncs.com/compatible-mode/v1`.'
+          $inner:
+              - 'API key'
+              - 'Base URL'
+              - 'Enabled'
+      authHeader:
+          $desc: 'Which auth header to send. Relays often want a different shape than the vendor API.'
+          $inner:
+              - 'Authorization: Bearer only'
+              - 'x-api-key only'
+              - 'Both'
+      headers:
+          $desc: 'Extra request headers (e.g. `anthropic-beta`, a custom UA). A header named here overrides the default one.'
+          $inner:
+              - 'Header name'
+              - 'Header value'
+
+    - $desc: 'Model listing'
+      pullModels: 'Whether to pull the model list from the endpoint. When off, only the manually entered models are used.'
+      modelsURL: 'Where to list models. When set, only this URL is asked, for upstreams whose listing lives away from the request base (Bailian''s Anthropic base serves no `/models`; point this at its compatible-mode listing instead). Empty means the endpoint base.'
+      modelsProbe: 'Also try `base/v1/models` when `base/models` answers nothing, to correct a base typed one version segment short.'
+      blacklistModels:
+          $desc: 'Keyword blacklist. Models whose id contains any of these never reach the list.'
+          $inner:
+              - 'Keyword'
+      modelOverrides:
+          $desc: 'Per-model overrides, keyed by model id. A present key injects the model even when the endpoint does not list it; a field left empty still comes from models.dev rather than being blanked.'
+
+    - $desc: 'Model metadata'
+      metadata:
+          enabled: 'Use models.dev metadata (context window, output cap, vision/tool/reasoning capabilities, model type). When off, chatluna''s existing heuristics and defaults apply.'
+          sources:
+              $desc: 'Metadata sources, tried in order. Defaults to `models.dev`; any `https://` URL serving the same shape also works.'
+              $inner:
+                  - 'Source (models.dev or a URL)'
+          refreshOnStart: 'Fetch fresh data on start (or plugin reload). A failure keeps the previous copy. Instances in one process share a single fetch.'
+          refreshInterval: 'Refresh interval in seconds. `0` fetches once at start only.'
+          timeout: 'Fetch timeout in milliseconds. On timeout the local cache is used.'
+          fillCapabilities: 'Also fill model capabilities (vision, reasoning, …). When off, only the context window and output cap are filled.'
+
+    - $desc: 'Model settings'
+      maxContextRatio: 'Maximum share of the context window to use (0~1). 0.35 means at most 35% of the model''s context.'
+      temperature: 'Randomness of replies; higher is more random.'
+      presencePenalty: 'Penalises tokens that already appeared at least once (-2~2, step 0.1).'
+      frequencyPenalty: 'Penalises tokens that appeared often (-2~2, step 0.1).'
+      nonStreaming: 'Always use non-streaming requests.'

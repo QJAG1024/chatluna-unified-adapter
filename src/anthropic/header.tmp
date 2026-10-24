@@ -1,0 +1,11 @@
+/*
+ * Vendored from koishi-plugin-chatluna-claude-adapter@1.4.0-alpha.11
+ *   packages/adapter-claude/src/types.ts (372 lines)
+ *   upstream commit: ca1177d4 (ChatLunaLab/chatluna, v1-dev)
+ *   vendored: 2026-10-24
+ *
+ * License: AGPL-3.0, same as this package. Original copyright ChatLunaLab.
+ * Re-vendor steps: see src/anthropic/README.md.
+ *
+ * Local deviations from upstream: none.
+ */
