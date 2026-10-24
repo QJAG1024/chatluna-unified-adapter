@@ -301,11 +301,20 @@ t2  各实例按自己的 refreshInterval 注册 setInterval
 **实例被全部卸载时不中止 in-flight fetch**——让它跑完写盘，下次启动受益。
 不加引用计数（删掉实例时它没有 `ctx` 可用）。
 
-### 5.3 `catalog()` 的契约
+### 5.3 一个实例内只发现一次
+
+`BasePlatformClient.getModels()` 在启动时会把 `refreshModels()` 跑两遍
+（`isAvailable` → `init`，然后 `refreshClient` 直接调）。所以客户端持有
+`ClientState.listing`，第一次拿到结果后复用，失败结论也一并复用——否则同一
+次启动会打两次网络、打两条一样的警告。
+
+这份 memo 是**每客户端**的，不跨实例：每个实例问自己的端点（§4.4）。
+
+### 5.4 `catalog()` 的契约
 
 **永远 resolve 一个可用索引，永不 reject。** 调用方不需要 try/catch。
 
-### 5.4 快照格式与体积
+### 5.5 快照格式与体积
 
 `scripts/fetch-catalog.mjs` 拉 `models.dev/api.json`
 （230 providers / 8889 条 / 4059 唯一 id，MIT 许可），归一化去重后只保留
@@ -338,7 +347,7 @@ t2  各实例按自己的 refreshInterval 注册 setInterval
 `version` 升版即丢弃旧缓存；`sources` 与配置不一致也丢弃（用户加了自定义源，
 旧缓存不完整）。
 
-### 5.5 匹配
+### 5.6 匹配
 
 按顺序尝试：精确 id → 小写 → 去 `vendor/` 前缀 → 去 `-YYYYMMDD` 后缀。
 4059 条上实测 61 个真实 id（qwen/claude/gpt/glm/kimi/doubao/hunyuan/ernie/
@@ -570,7 +579,34 @@ export type UnifiedProtocol = 'chat' | 'responses' | 'messages'
 | M2 | `catalog.ts` 完整（三层来源、单例时序、原子写）+ `spec.ts` | 索引 4059 条；`qwen3-max` 命中；`text-embedding-v3` 落覆写分支；多实例并发只拉一次 |
 | M3 | `requester.ts` 分发 + `anthropic/` vendored 移植 | 同一进程内 chat 实例与 messages 实例各回一轮；流式与 thinking 块正常 |
 | M4 | `client.ts` 装配 + `fileHandlingConfig` | `chatluna.model.list` 上下文/能力正确；给视觉模型发图 |
-| M5 | README + `usage` 文本（百炼 / OpenRouter 示例） | — |
+| M5 | README + `usage` 文本 + `scripts/harness.cjs` / `scripts/chat.cjs` | 见 §12 |
+
+### 已完成的验证（M0–M4）
+
+无测试框架，验证走真机脚本：
+
+| 脚本 | 覆盖 | 结果 |
+|---|---|---|
+| `scripts/probe.ts` | 发现层对真实端点、元数据匹配 | 见下 |
+| `scripts/harness.cjs` | 真 koishi 启动、实例模型数、能力、缓存 | 见下 |
+| `scripts/chat.cjs` | 真实对话一轮（三种协议 × 流式/非流式 × 工具调用） | 见下 |
+
+发现层实测：`{data:[...]}` / `models/<id>` 前缀 / `{models:[...]}` /
+`{results:[...]}` / 裸数组 / 404 / 不可解析 七种形态均按预期；
+`base/models` 404 而 `base/v1/models` 200 时正确修正 base；
+`modelsURL` 显式时只问它。
+
+真机（`harness.cjs`）：`chat` 实例 180 个模型、`messages` 实例 181 个
+（多出的是手动注入的 `text-embedding-v3`）；零模型实例正常加载并只警告一次；
+`metadata.enabled: false` 时全部落 200k/文本+工具；写坏缓存后自动回落到包内
+快照并重写；第二次启动命中磁盘缓存。
+
+真机（`chat.cjs`）：`chat` / `responses` / `messages` 三种协议各回一轮成功，
+流式与非流式都通；工具调用在两种 wire 上分别产出 `call_*` 与 `toolu_*` id；
+usage 的 `cache_read` / `reasoning` 字段正确透传。
+
+过程中修掉两个真实缺陷：发现请求没带鉴权（全部 401）、
+`shared-adapter` 的非流式路径残留 `stream_options` 被上游拒绝。
 
 ---
 

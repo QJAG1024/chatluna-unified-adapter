@@ -113,8 +113,28 @@ yarn fetch-catalog          # 重新生成 src/data/models.dev.json
 yarn probe <baseURL> [key] [chat|responses|messages]
 ```
 
-`yarn probe` 对真实端点跑一次发现与元数据匹配，打印「哪个列表路由应答、拿到了哪些
-id、每个 id 的元数据」，用来在接线前核对供应商的怪癖。它不是测试。
+三个验证脚本（都不是测试框架，跑完打印结果就退出）：
+
+| 脚本 | 作用 |
+| --- | --- |
+| `yarn probe <base> [key] [protocol]` | 对真实端点跑发现与元数据匹配，打印「哪个列表路由应答了什么状态、拿到了哪些 id、每个 id 的元数据」。接线前核对供应商怪癖用。 |
+| `node scripts/harness.cjs <config.json> [秒]` | 起一个真 koishi，按 JSON 数组挂多个实例，打印每个实例的模型数、能力、上下文。 |
+| `node scripts/chat.cjs <config.json> <platform/model> [prompt] [秒]` | 起真 koishi 并跑一轮真实对话，打印回复、usage 与工具调用。`TOOLS=1` 时附带一个可被调用的工具。 |
+
+`config.json` 是插件配置的数组，每个元素一个实例，例如：
+
+```json
+[
+  {
+    "platform": "my-gateway",
+    "protocol": "chat",
+    "apiKeys": [["sk-...", "https://api.example.com/v1", true]]
+  }
+]
+```
+
+注意 koishi 4.18 的 ESM 入口在部分 Node 版本上存在双包问题，所以这两个脚本用
+CommonJS 写、走 `require`。
 
 ## 许可证
 
