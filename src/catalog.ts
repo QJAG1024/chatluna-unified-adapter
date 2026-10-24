@@ -123,7 +123,11 @@ export function lookup(id: string): ModelSpec | undefined {
         if (short != null) return short
     }
 
-    return exact.get(lower.replace(/-\d{8}$/, ''))
+    // A snapshot suffix on the id: `-20250929` on one vendor, `-2025-09-29` on
+    // another. Either way the record is filed under the undated name.
+    return exact.get(
+        lower.replace(/-\d{4}-\d{2}-\d{2}$/, '').replace(/-\d{8}$/, '')
+    )
 }
 
 export function size() {
