@@ -27,7 +27,7 @@ import { catalog, lookup } from './catalog'
 import { listModels } from './discovery'
 import { Override, specOf } from './spec'
 import { UnifiedRequester } from './requester'
-import { supportsEmbeddings } from './protocol'
+import { buildHeaders, supportsEmbeddings } from './protocol'
 import type { ModelUsageReporter } from 'koishi-plugin-chatluna/llm-core/platform/usage'
 
 /**
@@ -44,54 +44,95 @@ interface Manual {
     override: Override
 }
 
+/** Per-client memo of the endpoint's listing. */
+export interface ClientState {
+    listing?: ReturnType<typeof listModels>
+}
+
 /**
  * Build this instance's model list. Never throws: an endpoint with no listing
- * route (Bailian's Anthropic base answers 404) simply contributes nothing.
+ * route simply contributes nothing.
+ *
+ * `state` is per client and holds the listing once fetched, because
+ * `BasePlatformClient.getModels()` calls this twice at startup
+ * (`isAvailable` -> `init`, then `refreshClient`). It is not shared between
+ * instances: each one asks its own endpoint.
  */
 export async function refreshModels(
     ctx: Context,
     cfg: Config,
     plugin: ChatLunaPlugin<ClientConfig, Config>,
-    requester: UnifiedRequester
+    requester: UnifiedRequester,
+    state: ClientState
 ): Promise<ModelInfo[]> {
     const manual = manualEntries(cfg)
-    const base = enabledBase(cfg)
+    const credentials = firstEnabled(cfg)
+    const announce = state.listing == null
 
     let ids: string[] = []
 
-    if (cfg.pullModels && base != null) {
-        const found = await listModels({
-            base,
+    if (cfg.pullModels && credentials != null) {
+        state.listing ??= listModels({
+            base: credentials.base,
             modelsURL: cfg.modelsURL,
             probe: cfg.modelsProbe,
-            fetch: (url, init) => plugin.fetch(url, init),
+            fetch: (url, init) =>
+                plugin.fetch(url, {
+                    ...init,
+                    headers: buildHeaders(
+                        cfg.protocol,
+                        credentials.key,
+                        cfg.authHeader,
+                        cfg.headers
+                    )
+                } as never),
             timeout: cfg.timeout
         })
 
-        if (found.base != null) {
-            ctx.logger('chatluna-unified-adapter').warn(
-                'models listed under %s/models, while requests go to %s',
-                found.base,
-                base
-            )
-        }
-
-        if (found.ids.length === 0) {
-            // Say which route answered what: "no such route" and "the key was
-            // refused" lead to completely different fixes.
-            const detail = found.attempts
-                .map((it) => `${it.url} → ${it.status ?? 'network error'}`)
-                .join(', ')
-            ctx.logger('chatluna-unified-adapter').warn(
-                'no model list from this endpoint (%s); the adapter loads with %d manually configured model(s)',
-                detail,
-                manual.size
-            )
-        }
-
+        const found = await state.listing
         ids = found.ids
+
+        // Report once. `getModels()` runs this twice at startup, and a repeated
+        // warning reads like a second, separate failure.
+        if (announce) {
+            if (found.base != null) {
+                ctx.logger('chatluna-unified-adapter').warn(
+                    'models listed under %s/models, while requests go to %s',
+                    found.base,
+                    credentials.base
+                )
+            }
+
+            if (found.ids.length === 0) {
+                // Say which route answered what: "no such route" and "the key
+                // was refused" lead to completely different fixes.
+                const detail = found.attempts
+                    .map((it) => `${it.url} → ${it.status ?? 'network error'}`)
+                    .join(', ')
+                ctx.logger('chatluna-unified-adapter').warn(
+                    'no model list from this endpoint (%s); the adapter loads with %d manually configured model(s)',
+                    detail,
+                    manual.size
+                )
+            }
+        }
     }
 
+    return assemble(ctx, cfg, manual, ids, requester, plugin)
+}
+
+/**
+ * Turn ids and manual entries into ModelInfo. Shared by the cached and
+ * fresh-discovery paths so both produce the same list.
+ */
+async function assemble(
+    ctx: Context,
+    cfg: Config,
+    manual: Map<string, Manual>,
+    ids: string[],
+    requester: UnifiedRequester,
+    plugin: ChatLunaPlugin<ClientConfig, Config>
+): Promise<ModelInfo[]> {
     // Loading the index is the point; `lookup` reads the module-level result.
     await catalog(ctx, cfg.metadata, (url, init) => plugin.fetch(url, init))
 
@@ -124,10 +165,10 @@ export async function refreshModels(
     return infos
 }
 
-/** The base of the first enabled key, or undefined when none is usable. */
-function enabledBase(cfg: Config) {
+/** The first key/base pair the user enabled, or undefined when none is usable. */
+function firstEnabled(cfg: Config) {
     for (const [key, base, enabled] of cfg.apiKeys) {
-        if (enabled && key.length > 0 && base.length > 0) return base
+        if (enabled && key.length > 0 && base.length > 0) return { key, base }
     }
     return undefined
 }
@@ -157,6 +198,7 @@ export class UnifiedEmbeddingsClient extends PlatformModelEmbeddingsAndRerankerC
     platform: string
     private _requester: UnifiedRequester
     private _plugin: ChatLunaPlugin<ClientConfig, Config>
+    private _state: ClientState = {}
 
     constructor(
         ctx: Context,
@@ -171,7 +213,13 @@ export class UnifiedEmbeddingsClient extends PlatformModelEmbeddingsAndRerankerC
     }
 
     async refreshModels(_config?: RunnableConfig) {
-        return refreshModels(this.ctx, this.cfg, this._plugin, this._requester)
+        return refreshModels(
+            this.ctx,
+            this.cfg,
+            this._plugin,
+            this._requester,
+            this._state
+        )
     }
 
     getFileHandlingConfig(): FileHandlingConfig {
@@ -212,6 +260,7 @@ export class UnifiedModelClient extends PlatformModelClient<ClientConfig> {
     platform: string
     private _requester: UnifiedRequester
     private _plugin: ChatLunaPlugin<ClientConfig, Config>
+    private _state: ClientState = {}
 
     constructor(
         ctx: Context,
@@ -226,7 +275,13 @@ export class UnifiedModelClient extends PlatformModelClient<ClientConfig> {
     }
 
     async refreshModels(_config?: RunnableConfig) {
-        return refreshModels(this.ctx, this.cfg, this._plugin, this._requester)
+        return refreshModels(
+            this.ctx,
+            this.cfg,
+            this._plugin,
+            this._requester,
+            this._state
+        )
     }
 
     getFileHandlingConfig(): FileHandlingConfig {

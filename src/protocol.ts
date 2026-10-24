@@ -54,3 +54,36 @@ export const DEFAULT_MAX_OUTPUT_TOKENS: Partial<
 export function supportsEmbeddings(protocol: UnifiedProtocol) {
     return protocol === 'chat'
 }
+
+/**
+ * The headers a request to this endpoint carries.
+ *
+ * One builder for every request the adapter makes — completions, listings and
+ * catalog fetches alike — so a supplier that requires an odd auth shape or an
+ * extra header sees it on all of them. Built here rather than in the requester
+ * because discovery runs before any requester exists.
+ */
+export function buildHeaders(
+    protocol: UnifiedProtocol,
+    key: string,
+    authHeader: AuthHeader,
+    extra: [string, string][]
+): Record<string, string> {
+    const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        ...defaultHeaders(protocol)
+    }
+
+    if (authHeader === 'bearer' || authHeader === 'both') {
+        headers.Authorization = `Bearer ${key}`
+    }
+    if (authHeader === 'x-api-key' || authHeader === 'both') {
+        headers['x-api-key'] = key
+    }
+
+    for (const [name, value] of extra) {
+        if (name.length > 0) headers[name] = value
+    }
+
+    return headers
+}

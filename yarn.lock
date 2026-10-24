@@ -330,12 +330,24 @@
     js-yaml "^4.1.0"
     ns-require "^1.1.4"
 
+"@koishijs/plugin-database-memory@^3.7.0":
+  version "3.7.0"
+  resolved "https://registry.npmmirror.com/@koishijs/plugin-database-memory/-/plugin-database-memory-3.7.0.tgz#69dd08187744ddf61ade75a5ae078a9ce5d27be0"
+  integrity sha512-Yt7c95nFt/1UtgK7NrXZpCDGybVhPA+wVbThIW2EGckGZcmosefyekhfxr5minpTr0kcW1X6lfk93dZkPNbXtg==
+  dependencies:
+    "@minatojs/driver-memory" "^3.7.0"
+
 "@koishijs/plugin-http@^0.6.3":
   version "0.6.3"
   resolved "https://registry.npmmirror.com/@koishijs/plugin-http/-/plugin-http-0.6.3.tgz#1b6879cb6ed3f5f7b91d1deecec6c5f6df8b2fbf"
   integrity sha512-alw51yjc6bykgZD2EsbTn03Yjwp9Mkidb1BsQn25SDwaBQqla0bZAVivFxNW1J60lneP9uymu3EUnPspvBuxog==
   dependencies:
     "@cordisjs/plugin-http" "^0.6.3"
+
+"@koishijs/plugin-notifier@^1.2.1":
+  version "1.2.1"
+  resolved "https://registry.npmmirror.com/@koishijs/plugin-notifier/-/plugin-notifier-1.2.1.tgz#bf8b411f82c4d641202f03d380cf4e241427e0d7"
+  integrity sha512-RF+dJkOIiTQeNNjygBx0Unzdnmio+fmmqYKZHIZJMehEv4ktGc74Q1fAbWJBk60W34sS4rDhxkmrnxBwT0/RYw==
 
 "@koishijs/plugin-proxy-agent@^0.3.3":
   version "0.3.3"
@@ -376,6 +388,13 @@
     uuid "^10.0.0"
     zod "^3.25.32"
     zod-to-json-schema "^3.22.3"
+
+"@minatojs/driver-memory@^3.7.0":
+  version "3.7.0"
+  resolved "https://registry.npmmirror.com/@minatojs/driver-memory/-/driver-memory-3.7.0.tgz#9986763a535dc6a5672f466f05c7c7e230ad02df"
+  integrity sha512-IOiLWm4KVxUS5cvL9YWn827tbnEeHku6CIMHLtO+smPFUInRnczJZ6kikpCzx2ynqMV/nPKu8kIAGrYKJhR5/Q==
+  dependencies:
+    cosmokit "^1.6.3"
 
 "@noble/hashes@^1.1.5":
   version "1.8.0"

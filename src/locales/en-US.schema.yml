@@ -1,6 +1,6 @@
 $inner:
     - $desc: 'Basics'
-      platform: 'The adapter platform name, also the model prefix (e.g. `bailian/qwen-plus`). One plugin can be mounted several times, each with its own name.'
+      platform: 'The adapter platform name, also the model prefix (e.g. `my-gateway/gpt-5`). One plugin can be mounted several times, each with its own name.'
       protocol:
           $desc: 'The wire protocol this instance speaks. One instance speaks one protocol; nothing is translated between them.'
           $inner:
@@ -10,7 +10,7 @@ $inner:
 
     - $desc: 'Endpoint and credentials'
       apiKeys:
-          $desc: 'API keys and their base URLs. The base must include the version segment, e.g. `https://dashscope.aliyuncs.com/compatible-mode/v1`.'
+          $desc: 'API keys and their base URLs. The base must include the version segment, e.g. `https://api.openai.com/v1`.'
           $inner:
               - 'API key'
               - 'Base URL'
@@ -29,7 +29,7 @@ $inner:
 
     - $desc: 'Model listing'
       pullModels: 'Whether to pull the model list from the endpoint. When off, only the manually entered models are used.'
-      modelsURL: 'Where to list models. When set, only this URL is asked, for upstreams whose listing lives away from the request base (Bailian''s Anthropic base serves no `/models`; point this at its compatible-mode listing instead). Empty means the endpoint base.'
+      modelsURL: 'Where to list models. When set, only this URL is asked, for upstreams whose listing lives away from the request base (some Anthropic-compatible endpoints serve no `/models`; point this at the vendor''s other endpoint instead). Empty means the endpoint base.'
       modelsProbe: 'Also try `base/v1/models` when `base/models` answers nothing, to correct a base typed one version segment short.'
       blacklistModels:
           $desc: 'Keyword blacklist. Models whose id contains any of these never reach the list.'

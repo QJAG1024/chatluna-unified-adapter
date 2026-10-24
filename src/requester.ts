@@ -151,6 +151,21 @@ export class UnifiedRequester
         }
     }
 
+    /**
+     * `shared-adapter`'s non-streaming path drops `stream` but leaves
+     * `stream_options` behind, and some upstreams reject that combination
+     * outright ("'stream' and 'stream_options' must be set together"). Strip it
+     * whenever the request is not streaming, whatever built the body.
+     */
+    public post(
+        url: string,
+        data: Parameters<ModelRequester['post']>[1],
+        params?: Parameters<ModelRequester['post']>[2]
+    ) {
+        if (data != null && data.stream !== true) delete data.stream_options
+        return super.post(url, data, params)
+    }
+
     buildHeaders(): Record<string, string> {
         const cfg = this.cfg
         const key = this._config.value.apiKey

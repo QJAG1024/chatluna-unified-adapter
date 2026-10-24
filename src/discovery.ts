@@ -54,8 +54,8 @@ export interface Discovery {
 
 /**
  * Ask the endpoint for its model ids. Returns an empty list when no candidate
- * answers, including when the endpoint has no listing route at all (Bailian's
- * Anthropic base answers 404) — an empty list is a legal state, not an error.
+ * answers, including when the endpoint has no listing route at all — an empty
+ * list is a legal state, not an error.
  */
 export async function listModels(opts: DiscoveryOptions): Promise<Discovery> {
     const candidates = modelsCandidates(opts.base, opts.modelsURL, opts.probe)
@@ -123,6 +123,7 @@ async function fetchPage(
     opts: DiscoveryOptions
 ): Promise<{ page?: Page; status?: number }> {
     let body: unknown
+    let status: number | undefined
 
     try {
         const response = await opts.fetch(url, {
@@ -137,6 +138,7 @@ async function fetchPage(
         if (!response.ok) return { status: response.status }
 
         body = await response.json()
+        status = response.status
     } catch {
         // A network failure or a non-JSON body means the same thing.
         return {}
@@ -153,6 +155,7 @@ async function fetchPage(
 
     const raw = body as { has_more?: unknown; last_id?: unknown }
     return {
+        status,
         page: {
             ids,
             hasMore: raw.has_more === true,

@@ -1,6 +1,6 @@
 $inner:
     - $desc: '基础'
-      platform: '适配器的平台名，同时是模型前缀（如 `bailian/qwen-plus`）。同一插件可挂多个实例，各自用不同的名字。'
+      platform: '适配器的平台名，同时是模型前缀（如 `my-gateway/gpt-5`）。同一插件可挂多个实例，各自用不同的名字。'
       protocol:
           $desc: '本实例使用的 wire 协议。一个实例只讲一种协议，不做协议间转换。'
           $inner:
@@ -10,7 +10,7 @@ $inner:
 
     - $desc: '端点与凭据'
       apiKeys:
-          $desc: 'API Key 与请求地址列表。请求地址需包含版本路径，如 `https://dashscope.aliyuncs.com/compatible-mode/v1`。'
+          $desc: 'API Key 与请求地址列表。请求地址需包含版本路径，如 `https://api.openai.com/v1`。'
           $inner:
               - 'API Key'
               - 'API 请求地址'
@@ -29,7 +29,7 @@ $inner:
 
     - $desc: '模型列表'
       pullModels: '是否从端点拉取模型列表。关闭后仅使用下方手动填写的模型。'
-      modelsURL: '模型列表地址。填写后只问这一个地址，适用于列表不在端点 base 下的上游（如百炼的 Anthropic 端点不提供 `/models`，可填其 compatible-mode 的列表地址）。留空则使用端点自身的 base。'
+      modelsURL: '模型列表地址。填写后只问这一个地址，适用于列表不在请求 base 下的上游（某些 Anthropic 兼容端点不提供 `/models`，可填该供应商其他端点的列表地址）。留空则使用端点自身的 base。'
       modelsProbe: '当 `base/models` 无响应时额外尝试 `base/v1/models`（修正 base 少写一层版本路径的情况）。'
       blacklistModels:
           $desc: '关键词黑名单。ID 中含任一关键词的模型不会出现在列表里。'

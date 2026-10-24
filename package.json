@@ -48,6 +48,8 @@
         "zod-to-json-schema": "^3.24.6"
     },
     "devDependencies": {
+        "@koishijs/plugin-database-memory": "^3.7.0",
+        "@koishijs/plugin-notifier": "^1.2.1",
         "@types/node": "^22.18.7",
         "@typescript-eslint/eslint-plugin": "^7.18.0",
         "@typescript-eslint/parser": "^7.18.0",

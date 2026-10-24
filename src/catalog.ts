@@ -295,7 +295,10 @@ function collect(payload: Record<string, unknown>) {
             const entry = normalize(raw as Record<string, unknown>)
             if (entry == null) continue
 
-            const id = (raw as { id?: string }).id || key
+            // Lowercased, like the build-time snapshot: the index keys
+            // everything lowercase, so collapsing here keeps the written cache
+            // the same size as the bundled one.
+            const id = ((raw as { id?: string }).id || key).toLowerCase()
             const score = weight(entry)
             if (rank[id] != null && rank[id] >= score) continue
 
