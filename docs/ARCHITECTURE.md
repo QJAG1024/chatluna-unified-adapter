@@ -666,6 +666,9 @@ catalog 只剥 `-YYYYMMDD` 而漏掉 `-YYYY-MM-DD`（导致整批模型掉进 20
 | 并发三条 | 全部按序返回 1 / 2 / 3 |
 | 无效 key | 上游 403 原文保留，抛 `ChatLunaError:103` |
 | Agent 模式（`chatluna-agent`，`defaultChatMode: plugin`） | 工具链往返完整：多轮 `tool_use` → `tool_result` → 再 `tool_use`，27 条消息的对话里共 10 条工具往返，全部正确 |
+| 工具真实执行（`bash`） | `echo tool-works-123` → 模型拿到真实输出并转述 |
+| 三步工具链 | `bash date +%s` → `file_write /tmp/ua-test.txt` → `file_read` 读回；文件在宿主机真实存在，三步结果一致 |
+| 工具执行失败 | `ls /nonexistent-dir-xyz` → 退出码 2 与 stderr 原文回传，模型正确转述 |
 
 请求体实测（`deepseek-v4.1-flash-1017`，修复前 vs 后）：
 
