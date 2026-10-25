@@ -40,14 +40,18 @@ export function defaultHeaders(protocol: UnifiedProtocol) {
 }
 
 /**
- * The `max_tokens` ceiling a request uses when neither the caller, the user's
- * override, nor the catalog states an output limit. Anthropic's Messages API
- * requires a value, the OpenAI-shaped ones do not.
+ * The `max_tokens` a Messages request falls back to when neither the caller,
+ * the user's override, nor the catalog states an output limit.
+ *
+ * The Messages API requires the field, so some value must go out. 10 000 is
+ * what chatluna's own Claude adapter sends (`params.maxTokens ?? 10_000`), and
+ * matching it keeps behaviour identical for anyone moving from that adapter.
+ * The OpenAI-shaped wires need no fallback at all: they omit the field.
  */
 export const DEFAULT_MAX_OUTPUT_TOKENS: Partial<
     Record<UnifiedProtocol, number>
 > = {
-    messages: 8192
+    messages: 10_000
 }
 
 /** Whether a protocol can serve embeddings and rerankers at all. */

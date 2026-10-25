@@ -50,6 +50,10 @@ export function specOf(
         override?.modelType != null
             ? modelTypeOf(override.modelType)
             : modelTypeOf(meta?.type)
+    const context =
+        override?.contextSize ??
+        meta?.context ??
+        getModelMaxContextSizeByName(name)
 
     return {
         info: {
@@ -58,10 +62,7 @@ export function specOf(
             // chatluna reads maxTokens as the context window. An unknown model
             // keeps the fallback shared-adapter already assumes, so this
             // adapter never disagrees with the existing ones.
-            maxTokens:
-                override?.contextSize ??
-                meta?.context ??
-                getModelMaxContextSizeByName(name),
+            maxTokens: context,
             // The schema materializes an untouched checkbox list as `[]`, so an
             // empty array means "not set" — same as an absent field.
             capabilities:
@@ -71,8 +72,29 @@ export function specOf(
                       ? capabilitiesOf(name, meta, type)
                       : []
         },
-        output: override?.maxOutputTokens ?? meta?.output
+        // Only a catalog figure is capped; an explicit override is taken as
+        // written (see outputOf).
+        output: override?.maxOutputTokens ?? outputOf(meta?.output, context)
     }
+}
+
+/**
+ * A catalog output figure, only when it is self-consistent.
+ *
+ * Some records state an output cap equal to the whole context window
+ * (`deepseek-v4.1-flash-1017` is filed as 1050000 / 1050000). Sending that as
+ * `max_tokens` is not merely large, it is rejected: the vendor answers
+ * "Range of max_completion_tokens should be [1, 393216]". A reply cannot use
+ * the entire window, so a figure at or above it is a catalog error rather than
+ * a limit — dropping it lets the protocol default apply, which always works.
+ *
+ * A user's explicit `maxOutputTokens` is honoured as written; if they set
+ * something the vendor refuses, that is theirs to see and fix.
+ */
+function outputOf(output: number | undefined, context: number | undefined) {
+    if (output == null) return undefined
+    if (context != null && context > 0 && output >= context) return undefined
+    return output
 }
 
 /** models.dev `type` and the config enum both collapse onto ModelType. */
