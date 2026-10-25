@@ -1,0 +1,49 @@
+name: Build
+
+on:
+    push:
+        branches:
+            - main
+    pull_request:
+
+jobs:
+    verify:
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Check out
+              uses: actions/checkout@v4
+
+            - name: Set up Node
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 22
+                  cache: npm
+
+            - name: Install
+              run: npm ci
+
+            - name: Lint
+              run: npm run lint
+
+            - name: Build
+              run: npm run build
+
+            # A clean checkout must produce a bundle that carries the inlined
+            # catalog, not a stub.
+            - name: Verify build output
+              run: |
+                  for f in lib/index.cjs lib/index.mjs lib/index.d.ts; do
+                      test -s "$f" || { echo "::error::$f missing or empty"; exit 1; }
+                  done
+                  node -e "
+                    const p = require('./lib/index.cjs')
+                    if (!p.name || typeof p.Config !== 'function' || typeof p.usage !== 'string') {
+                      throw new Error('bundle does not export name/Config/usage')
+                    }
+                    const cfg = p.Config({ platform: 'ci' })
+                    if (Object.keys(cfg).length < 20) {
+                      throw new Error('Config schema resolved to too few fields')
+                    }
+                    console.log('bundle ok:', p.name, '|', Object.keys(cfg).length, 'fields')
+                  "

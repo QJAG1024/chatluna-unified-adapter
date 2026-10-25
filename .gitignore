@@ -30,3 +30,7 @@ data/
 
 # npm pack output
 *.tgz
+
+# yarn/pnpm lockfiles are not used; package-lock.json IS committed for CI (npm ci).
+yarn.lock
+pnpm-lock.yaml

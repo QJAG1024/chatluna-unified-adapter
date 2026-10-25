@@ -1,0 +1,78 @@
+name: Release
+
+# Publishing is bound to a tag, not a branch push: a `v*` tag that matches
+# package.json is the only thing that reaches npm.
+on:
+    push:
+        tags:
+            - 'v*'
+
+jobs:
+    release:
+        runs-on: ubuntu-latest
+        permissions:
+            contents: write # create the GitHub release
+            id-token: write # OIDC token for npm trusted publishing
+
+        steps:
+            - name: Check out
+              uses: actions/checkout@v4
+
+            - name: Set up Node
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 22
+                  registry-url: https://registry.npmjs.org
+
+            # npm 11.5.1+ is required for trusted publishing (OIDC).
+            - name: Update npm
+              run: npm install -g npm@latest
+
+            - name: Install
+              run: npm ci
+
+            - name: Verify tag matches package.json
+              run: |
+                  tag="${GITHUB_REF_NAME#v}"
+                  pkg="$(node -p "require('./package.json').version")"
+                  if [ "$tag" != "$pkg" ]; then
+                      echo "::error::tag $GITHUB_REF_NAME does not match package.json $pkg"
+                      exit 1
+                  fi
+                  echo "releasing $pkg"
+
+            - name: Lint
+              run: npm run lint
+
+            - name: Build
+              run: npm run build
+
+            # Guard against a build that silently produces nothing: the bundle
+            # is what users load, and it must carry the inlined catalog.
+            - name: Verify build output
+              run: |
+                  for f in lib/index.cjs lib/index.mjs lib/index.d.ts; do
+                      test -s "$f" || { echo "::error::$f missing or empty"; exit 1; }
+                  done
+                  node -e "
+                    const p = require('./lib/index.cjs')
+                    if (!p.name || typeof p.Config !== 'function' || typeof p.usage !== 'string') {
+                      throw new Error('bundle does not export name/Config/usage')
+                    }
+                    console.log('bundle ok:', p.name)
+                  "
+
+            # Trusted publishing: no NPM_TOKEN secret. npm exchanges the OIDC
+            # token for short-lived credentials, and provenance is attached
+            # automatically.
+            - name: Publish
+              run: npm publish --provenance --access public
+
+            - name: Create GitHub release
+              uses: softprops/action-gh-release@v2
+              with:
+                  generate_release_notes: true
+                  body: |
+                      See [CHANGELOG](https://github.com/${{ github.repository }}/commits/${{ github.ref_name }}) for details.
+
+                      Install: `npm install koishi-plugin-chatluna-unified-adapter@${{ github.ref_name }}`
