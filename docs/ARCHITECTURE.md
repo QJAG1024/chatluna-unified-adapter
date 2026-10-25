@@ -651,6 +651,31 @@ catalog 只剥 `-YYYYMMDD` 而漏掉 `-YYYY-MM-DD`（导致整批模型掉进 20
 最后一条是关键：模型读出了**两个区域**，说明图片字节真的到了模型，不是被上游
 静默丢弃后模型瞎猜。
 
+### 沙盒端到端测试（chatluna-sandbox MCP）
+
+`koishi-plugin-chatluna-sandbox` 暴露 MCP（默认 `127.0.0.1:61901/mcp`，Bearer 鉴权），
+能模拟 QQ 环境发消息、读回复，并能读到 **adapter 实际发出的请求体与响应体**
+（`get_model_request_record`）。这比自写脚本更有说服力：验证的是真实 wire。
+
+| 场景 | 结果 |
+|---|---|
+| 私聊单轮（messages） | 正常回复 |
+| 多轮上下文 | 准确复述上一轮内容；请求里 `user/assistant` 交替正确，system 被转进 messages |
+| 图片（真实 QQ 元素 → sandbox 媒体 → `image_url`） | 上蓝下黄答「蓝色 黄色」；wire 上是 `image/base64/image/png` 块 |
+| 长消息（18k 字符） | 正常回复，请求体 126 KB，裁剪未误伤 |
+| 并发三条 | 全部按序返回 1 / 2 / 3 |
+| 无效 key | 上游 403 原文保留，抛 `ChatLunaError:103` |
+
+请求体实测（`deepseek-v4.1-flash-1017`，修复前 vs 后）：
+
+```
+修复前: max_tokens: 1050000   → HTTP 400 "Range of max_completion_tokens should be [1, 393216]"
+修复后: max_tokens: 384000    → success
+```
+
+修复后取的是同一模型另一条正常记录（`deepseek-v4.1-flash` 的 `o: 384000`）——
+说明 `output >= context` 的丢弃规则生效，脏记录被绕过而正常记录仍然命中。
+
 **结论**：catalog 命中率约 58%，未命中的主体是端点上"顺带列出"的非对话模型。
 这些模型在 ChatLuna 里一律被登记成 `ModelType.llm`（catalog 未命中时无法判断
 类型），选中它们会失败——这是**已知并接受**的行为，因为：
