@@ -24,3 +24,6 @@ tsconfig.temp.json
 data/
 
 # a nested lockfile breaks workspace resolution in the host repo
+
+# ad-hoc verification scratch files
+*.tmp.mjs
