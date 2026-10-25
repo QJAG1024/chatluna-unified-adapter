@@ -16,8 +16,7 @@ export const reusable = true
 export const name = 'chatluna-unified-adapter'
 
 export const inject = {
-    required: ['chatluna'],
-    optional: ['chatluna_storage']
+    required: ['chatluna']
 }
 
 export type { UnifiedProtocol }

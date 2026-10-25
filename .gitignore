@@ -27,3 +27,6 @@ data/
 
 # ad-hoc verification scratch files
 *.tmp.mjs
+
+# npm pack output
+*.tgz
