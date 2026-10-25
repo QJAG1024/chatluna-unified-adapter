@@ -1,4 +1,6 @@
 $inner:
+    # ChatLunaPlugin.Config（聊天并发、超时、重试、代理等）自带描述，这里留空占位。
+    - {}
     - $desc: '基础'
       platform: '适配器的平台名，同时是模型前缀（如 `my-gateway/gpt-5`）。同一插件可挂多个实例，各自用不同的名字。'
       protocol:
@@ -32,14 +34,15 @@ $inner:
       modelsURL: '模型列表地址。填写后只问这一个地址，适用于列表不在请求 base 下的上游（某些 Anthropic 兼容端点不提供 `/models`，可填该供应商其他端点的列表地址）。留空则使用端点自身的 base。'
       modelsProbe: '当 `base/models` 无响应时额外尝试 `base/v1/models`（修正 base 少写一层版本路径的情况）。'
       blacklistModels:
-          $desc: '关键词黑名单。ID 中含任一关键词的模型不会出现在列表里。'
+          $desc: '关键词黑名单。ID 中含任一关键词的模型不会出现在列表里。端点列出的 embedding、图像生成、语音等非对话模型会被登记为对话模型，可用这里过滤。'
           $inner:
               - '关键词'
       modelOverrides:
-          $desc: '按模型 ID 的覆写。键存在即会注入该模型（即使端点没有列出它）；未填写的字段仍然从 models.dev 获取，不会被这里的空值覆盖。'
+          $desc: '按模型 ID 的覆写。键存在即会注入该模型（即使端点没有列出它）；未填写的字段仍然从 models.dev 获取，不会被这里的空值覆盖。无法从名称判断类型的模型，也可在此指定 `modelType`。'
 
     - $desc: '模型元数据'
       metadata:
+          $desc: '模型上下文与能力的来源，默认取自 models.dev。'
           enabled: '是否使用 models.dev 的模型元数据（上下文长度、输出上限、视觉/工具/思考能力与模型类型）。关闭后全部走 ChatLuna 既有的推断与默认值。'
           sources:
               $desc: '元数据来源，按顺序尝试。默认 `models.dev`，也可填入返回同构数据的 `https://` 地址。'

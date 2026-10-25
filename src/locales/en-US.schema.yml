@@ -1,4 +1,6 @@
 $inner:
+    # ChatLunaPlugin.Config（聊天并发、超时、重试、代理等）自带描述，这里留空占位。
+    - {}
     - $desc: 'Basics'
       platform: 'The adapter platform name, also the model prefix (e.g. `my-gateway/gpt-5`). One plugin can be mounted several times, each with its own name.'
       protocol:
@@ -32,14 +34,15 @@ $inner:
       modelsURL: 'Where to list models. When set, only this URL is asked, for upstreams whose listing lives away from the request base (some Anthropic-compatible endpoints serve no `/models`; point this at the vendor''s other endpoint instead). Empty means the endpoint base.'
       modelsProbe: 'Also try `base/v1/models` when `base/models` answers nothing, to correct a base typed one version segment short.'
       blacklistModels:
-          $desc: 'Keyword blacklist. Models whose id contains any of these never reach the list.'
+          $desc: 'Keyword blacklist. Models whose id contains any of these never reach the list. Endpoints often list embedding, image-generation and speech models alongside chat models; those are registered as chat models, so filter them here.'
           $inner:
               - 'Keyword'
       modelOverrides:
-          $desc: 'Per-model overrides, keyed by model id. A present key injects the model even when the endpoint does not list it; a field left empty still comes from models.dev rather than being blanked.'
+          $desc: 'Per-model overrides, keyed by model id. A present key injects the model even when the endpoint does not list it; a field left empty still comes from models.dev rather than being blanked. Also where a model whose type cannot be inferred from its name gets an explicit `modelType`.'
 
     - $desc: 'Model metadata'
       metadata:
+          $desc: 'Where model context windows and capabilities come from; models.dev by default.'
           enabled: 'Use models.dev metadata (context window, output cap, vision/tool/reasoning capabilities, model type). When off, chatluna''s existing heuristics and defaults apply.'
           sources:
               $desc: 'Metadata sources, tried in order. Defaults to `models.dev`; any `https://` URL serving the same shape also works.'
