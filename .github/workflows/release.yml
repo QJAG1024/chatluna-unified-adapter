@@ -1,7 +1,7 @@
 name: Release
 
-# Publishing is bound to a tag, not a branch push: a `v*` tag that matches
-# package.json is the only thing that reaches npm.
+# Publishing is bound to a tag, not a branch push: a `v*` tag whose version
+# matches package.json is the only thing that reaches npm.
 on:
     push:
         tags:
@@ -48,19 +48,10 @@ jobs:
               run: npm run build
 
             # Guard against a build that silently produces nothing: the bundle
-            # is what users load, and it must carry the inlined catalog.
+            # is what users load, and it must carry the inlined catalog and a
+            # fully described config schema.
             - name: Verify build output
-              run: |
-                  for f in lib/index.cjs lib/index.mjs lib/index.d.ts; do
-                      test -s "$f" || { echo "::error::$f missing or empty"; exit 1; }
-                  done
-                  node -e "
-                    const p = require('./lib/index.cjs')
-                    if (!p.name || typeof p.Config !== 'function' || typeof p.usage !== 'string') {
-                      throw new Error('bundle does not export name/Config/usage')
-                    }
-                    console.log('bundle ok:', p.name)
-                  "
+              run: node scripts/verify.mjs
 
             # Trusted publishing: no NPM_TOKEN secret. npm exchanges the OIDC
             # token for short-lived credentials, and provenance is attached
@@ -73,6 +64,4 @@ jobs:
               with:
                   generate_release_notes: true
                   body: |
-                      See [CHANGELOG](https://github.com/${{ github.repository }}/commits/${{ github.ref_name }}) for details.
-
                       Install: `npm install koishi-plugin-chatluna-unified-adapter@${{ github.ref_name }}`
