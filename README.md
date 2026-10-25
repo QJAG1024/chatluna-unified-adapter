@@ -1,193 +1,159 @@
+<div align="center">
+
 # koishi-plugin-chatluna-unified-adapter
 
-> ChatLuna 的第三方统一适配器。一个插件实例 = 一条上游路由 = 一种 wire 协议。
+_一个实例接入一条上游路由，端点、鉴权与模型元数据都可配置。_
 
-ChatLuna 现有适配器把「供应商 = 一套硬编码假设」写进了代码：base URL 只有一个、
-`/models` 一定存在、模型的上下文与能力靠手写表和名字正则推断。面对阿里云百炼
-这类上游，这三条都不成立——它的 Anthropic 端点没有 `/models`，而 Claude 适配器
-只能退回到九条写死的 `claude-*` 模型名。
+## [![npm](https://img.shields.io/npm/v/koishi-plugin-chatluna-unified-adapter)](https://www.npmjs.com/package/koishi-plugin-chatluna-unified-adapter) [![npm](https://img.shields.io/npm/dm/koishi-plugin-chatluna-unified-adapter)](https://www.npmjs.com/package/koishi-plugin-chatluna-unified-adapter)
 
-本适配器统一的是**同一种协议在不同供应商下的差异**，不是不同协议之间的差异：
+![node version](https://img.shields.io/badge/node-%3E=18-green)
 
-| 层 | 解决什么 | 靠什么 |
-| --- | --- | --- |
-| 端点与鉴权 | base 路径布局、鉴权头形态、额外 header | 每把 key 自己的 base、`authHeader` 三态、header 表 |
-| 模型列表 | 列表在哪、拿不到怎么办 | `modelsURL` 覆盖、`/v1` 探测修正；拿不到就是空列表，不报错 |
-| 模型元数据 | 上下文 / 输出上限 / 视觉 / 工具 / 思考 / 类型 | models.dev（实时 → 磁盘缓存 → 包内快照），字段级填充，绝不覆盖用户设置 |
+</div>
 
-它**不**在不同协议之间路由、转译或负载均衡。多上游 = 多个插件实例
-（`reusable = true`），`platform` 由你起名。
+## ✨ 特性
 
-设计决策与理由见 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)。
+* 🔌 **三种协议**：Chat Completions、Responses、Anthropic Messages，由配置项选择
+* 🧩 **多实例**：同一插件可挂任意多个实例，各自命名，互不干扰
+* 🔑 **按 key 配置端点**：每把 key 有自己的 base URL、鉴权头形态与额外请求头
+* 📋 **模型列表可覆盖**：端点没有 `/models` 时指向别处，或完全手写
+* 🏷️ **元数据自动填充**：上下文、输出上限、视觉/工具/思考能力取自 [models.dev](https://models.dev)
+* ✍️ **覆写优先**：手动设置的字段永远生效，未设置的才交给元数据源
 
-## 安装
+## 🚀 部署
 
-```bash
-yarn add koishi-plugin-chatluna-unified-adapter
-```
+在 Koishi 插件市场搜索 `chatluna-unified-adapter`，安装后启用即可。
 
-依赖 `koishi-plugin-chatluna` ≥ `1.4.0-alpha.44` 与 node ≥ 18。
+需要 [ChatLuna](https://chatluna.chat/) 主插件，版本 ≥ `1.4.0-alpha.44`。
 
-## 配置
+## ⚙️ 配置
 
-一个实例只讲一种协议，所以「同时接百炼的 OpenAI 兼容端点和 Anthropic 端点」
-就是在配置树里挂两个实例：
+一个实例对应一种协议与一条上游路由。接入同一供应商的多个端点时，挂载多个实例，
+以 `platform` 区分。
 
 ```yaml
 plugins:
-  chatluna-unified-adapter:            # 实例 1
-    platform: bailian                  # → bailian/qwen-plus
+  chatluna:xxx: {}
+
+  chatluna-unified-adapter:a1:
+    platform: my-gateway            # 模型以 my-gateway/模型名 出现
     protocol: chat
     apiKeys:
-      - [sk-xxxx, https://dashscope.aliyuncs.com/compatible-mode/v1, true]
+      - - sk-xxxx
+        - https://api.example.com/v1
+        - true
 
-  chatluna-unified-adapter:            # 实例 2（同一插件的第二个实例）
-    platform: bailian-claude           # → bailian-claude/qwen3.8-max
+  chatluna-unified-adapter:a2:
+    platform: my-gateway-claude
     protocol: messages
     apiKeys:
-      - [sk-xxxx, https://dashscope.aliyuncs.com/apps/anthropic/v1, true]
-    modelsURL: https://dashscope.aliyuncs.com/compatible-mode/v1/models
+      - - sk-xxxx
+        - https://api.example.com/anthropic/v1
+        - true
 ```
 
-第二个实例的 `modelsURL` 是必要的：百炼的 Anthropic 端点**不提供** `/models`
-（官方文档亦明说）。指向 compatible-mode 的列表接口即可——两个端点服务的是同一批
-qwen 模型。不填则实例正常加载，但模型列表为空。
+基础配置项：
 
-### 常见供应商
+| 配置项 | 说明 |
+| --- | --- |
+| `platform` | 实例名称，同时作为模型前缀 |
+| `protocol` | `chat` / `responses` / `messages` |
+| `apiKeys` | API Key、请求地址、是否启用 |
 
-| 上游 | protocol | base |
-| --- | --- | --- |
-| OpenAI | `chat` / `responses` | `https://api.openai.com/v1` |
-| 阿里云百炼（OpenAI 兼容） | `chat` / `responses` | `https://dashscope.aliyuncs.com/compatible-mode/v1` |
-| 阿里云百炼（Claude Code） | `messages` | `https://dashscope.aliyuncs.com/apps/anthropic/v1` |
-| Anthropic 官方 | `messages` | `https://api.anthropic.com/v1` |
-| OpenRouter | `chat` | `https://openrouter.ai/api/v1` |
-| DeepSeek | `chat` | `https://api.deepseek.com` |
-| 智谱 | `chat` | `https://open.bigmodel.cn/api/paas/v4` |
+请求地址须包含版本路径，如 `https://api.openai.com/v1`。
 
-base 需包含版本路径。若 base 少写了一层（`base/models` 返回 404 而
-`base/v1/models` 有内容），`modelsProbe` 会提示正确的地址。
+### 协议
+
+| 协议 | 说明 |
+| --- | --- |
+| `chat` | OpenAI Chat Completions。兼容网关的通用选择，支持嵌入与重排序模型 |
+| `responses` | OpenAI Responses |
+| `messages` | Anthropic Messages。官方 API 与 Claude 兼容端点 |
+
+### 鉴权与请求头
+
+默认鉴权头由协议决定：`chat` 与 `responses` 使用 `Authorization: Bearer`，
+`messages` 同时发送 `x-api-key` 与 `Authorization`。
+
+需要其他形态时由 `authHeader` 指定（`bearer` / `x-api-key` / `both`）。
+`headers` 表用于补充额外请求头，如 `anthropic-beta` 或自定义 UA。
+
+### 模型列表
+
+模型列表仅从配置的端点获取。获取失败时该实例加载为零模型，不中断启动。
+
+| 配置项 | 说明 |
+| --- | --- |
+| `modelsURL` | 列表地址。部分 Anthropic 兼容端点不提供 `/models`，可指向该供应商其他端点的列表 |
+| `modelsProbe` | 端点无列表时额外尝试 `地址/v1/models`，并在日志中输出可用地址 |
+| `pullModels` | 关闭后仅使用 `modelOverrides` 中的模型 |
 
 ### 模型覆写
 
-`modelOverrides` 以模型 id 为键，**键存在即注入该模型**——即使端点没有列出它。
-字段留空则仍然从 models.dev 取值，不会被空值覆盖：
+`modelOverrides` 以模型 id 为键。键存在即注入该模型，无论端点是否列出；
+未填写的字段仍从元数据源获取。
 
 ```yaml
 modelOverrides:
-  text-embedding-v3:                      # models.dev 里没有它
+  text-embedding-v3:                # 元数据源中不存在
     modelType: Embeddings 嵌入模型
     contextSize: 8192
   qwen3-max:
-    contextSize: 262144                   # 覆盖 catalog 值
+    contextSize: 262144             # 覆盖元数据源的值
     maxOutputTokens: 65536
   some-private-model:
     modelCapabilities: [tool_call, image_input]
 ```
 
-`maxOutputTokens` 用于 Messages 协议：该 API 要求 `max_tokens` 必填。
+`maxOutputTokens` 仅用于 `messages` 协议：该 API 要求 `max_tokens` 必填。
 
-## 元数据
+## 🏷️ 模型元数据
 
-默认从 [models.dev](https://models.dev)（MIT）取模型元数据，三层：
+上下文长度、输出上限、视觉与工具能力默认取自 [models.dev](https://models.dev)（MIT）。
+数据按三层依次回退：
 
-1. 启动时实时拉取（`metadata.refreshOnStart`）
+1. 启动时实时拉取
 2. 运行时缓存 `data/chatluna/unified-adapter/unified-catalog.json`
-3. 包内快照（构建期生成，约 300 KB / gzip 36 KB）
+3. 包内快照
 
-任一层失败都回落到上一层。同一进程内的多个实例共享一次拉取。
+任一层失败时使用上一层。同一进程内的多个实例共享一次拉取。
 
-`metadata.sources` 可以追加自建源（`https://` 地址，返回 models.dev 同构数据）。
+元数据源未收录的模型回退到 ChatLuna 既有的推断与默认值，与其他适配器一致。
+`metadata.sources` 可追加自建源，需返回 models.dev 同构数据。
 
-匹配不到时依次退回 ChatLuna 既有的 `getModelMaxContextSizeByName` /
-`supportImageInput` / `supportAudioInput`，最后是保守默认值——与该生态现有适配器
-行为一致。
+## 📌 已知情况
 
-## 在本地 koishi 里开发
+* 端点列出的 embedding、图像生成、语音等非对话模型会被登记为对话模型，因为
+  类型无法从名称可靠判断。可用 `blacklistModels` 过滤，或在 `modelOverrides`
+  中标注 `modelType`。
+* 工具执行失败时，错误信息位于结果文本中（退出码与 stderr），没有结构化的失败
+  标记。此行为与 ChatLuna 官方适配器一致。
+* 三种协议相互独立，不支持协议间转译或负载均衡。
 
-和 `external/` 里其他插件（如 emojiluna）一样，把仓库放进 koishi 工作区的
-`external/` 下即可，工作区的 `external/*` glob 会自动把它登记为一个 workspace：
+## 📄 许可证
 
-```bash
-cd /path/to/koishi-dev
-git clone <this repo> external/chatluna-unified-adapter
-yarn install                    # 登记 workspace，node_modules 里出现软链
-cd external/chatluna-unified-adapter && yarn build
-```
+[AGPL-3.0](./LICENSE)。
 
-要点：
+`src/anthropic/` 下的代码复制自 ChatLuna 官方 Claude 适配器（同为 AGPL-3.0），
+保留原始版权声明。同步方式见 [`src/anthropic/README.md`](src/anthropic/README.md)。
 
-- **必须是真实目录，不能是符号链接。** Node 会按真实路径解析模块，软链接指向
-  仓库外部时，插件就看不到 koishi 宿主装在 `koishi-dev/node_modules` 里的
-  `koishi` 与 `koishi-plugin-chatluna`，要么报 `Cannot find module 'koishi'`，
-  要么解析到自己私有的第二份 `koishi`（两份 `Service` 类，注册会失败）。
-- **不要在插件目录里保留 `yarn.lock` 或 `node_modules`。** 嵌套的 lockfile 会让
-  yarn 拒绝解析这个 workspace（`This package doesn't seem to be present in your
-  lockfile`）。
-- 插件的依赖（`@chatluna/v1-shared-adapter`、`@langchain/core` 等）由工作区统一
-  提升，插件自身不需要单独安装。
+## 🔧 开发
 
-然后在 koishi.yml 里挂实例：
-
-```yaml
-plugins:
-  chatluna:yx7byp: {}
-
-  chatluna-unified-adapter:uni1:
-    platform: ds-chat
-    protocol: chat
-    apiKeys:
-      - - sk-xxx
-        - https://dashscope.aliyuncs.com/compatible-mode/v1
-        - true
-
-  chatluna-unified-adapter:uni2:
-    platform: ds-msg
-    protocol: messages
-    apiKeys:
-      - - sk-xxx
-        - https://dashscope.aliyuncs.com/apps/anthropic/v1
-        - true
-    modelsURL: https://dashscope.aliyuncs.com/compatible-mode/v1/models
-```
-
-`platform` 必须两个实例各不相同——它就是模型前缀。
-
-## 开发
+设计决策见 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)，代理协作约定见
+[`AGENTS.md`](AGENTS.md)。
 
 ```bash
 yarn install
-yarn build                  # atsc -b（d.ts）+ esbuild（cjs/mjs）
+yarn build          # atsc（d.ts）+ esbuild（cjs/mjs）
 yarn lint
-yarn fetch-catalog          # 重新生成 src/data/models.dev.json
-yarn probe <baseURL> [key] [chat|responses|messages]
+yarn fetch-catalog  # 重新生成 src/data/models.dev.json
 ```
 
-三个验证脚本（都不是测试框架，跑完打印结果就退出）：
+仓库内附三个验证脚本，运行后输出结果并退出，非测试框架：
 
 | 脚本 | 作用 |
 | --- | --- |
-| `yarn probe <base> [key] [protocol]` | 对真实端点跑发现与元数据匹配，打印「哪个列表路由应答了什么状态、拿到了哪些 id、每个 id 的元数据」。接线前核对供应商怪癖用。 |
-| `node scripts/harness.cjs <config.json> [秒]` | 起一个真 koishi，按 JSON 数组挂多个实例，打印每个实例的模型数、能力、上下文。 |
-| `node scripts/chat.cjs <config.json> <platform/model> [prompt] [秒]` | 起真 koishi 并跑一轮真实对话，打印回复、usage 与工具调用。`TOOLS=1` 时附带一个可被调用的工具。 |
+| `yarn probe <base> [key] [protocol]` | 对端点执行模型发现与元数据匹配，用于核对供应商行为 |
+| `node scripts/harness.cjs <config.json>` | 启动 koishi 并挂载实例，输出模型数量与能力 |
+| `node scripts/chat.cjs <config.json> <platform/model>` | 启动 koishi 并执行一轮对话，输出回复与用量 |
 
-`config.json` 是插件配置的数组，每个元素一个实例，例如：
-
-```json
-[
-  {
-    "platform": "my-gateway",
-    "protocol": "chat",
-    "apiKeys": [["sk-...", "https://api.example.com/v1", true]]
-  }
-]
-```
-
-注意 koishi 4.18 的 ESM 入口在部分 Node 版本上存在双包问题，所以这两个脚本用
-CommonJS 写、走 `require`。
-
-## 许可证
-
-AGPL-3.0。`src/anthropic/` 下的代码复制自 ChatLuna 官方 Claude 适配器
-（同为 AGPL-3.0），保留原始版权声明；同步方式见
-[`src/anthropic/README.md`](src/anthropic/README.md)。
+`config.json` 为插件配置数组，每个元素对应一个实例。

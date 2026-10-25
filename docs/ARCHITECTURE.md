@@ -98,7 +98,7 @@ catalog 拉不到不影响模型列表。
 
 ## 3. 模型列表与元数据的确定路径
 
-这是整个插件最核心的行为契约。**没有第二条路径，没有推断分支。**
+本节定义模型列表与元数据的唯一来源路径，不存在其他分支。
 
 ```
 refreshModels():
@@ -123,11 +123,10 @@ refreshModels():
 要点：
 
 - **`refreshModels()` 永不抛错。** 空数组是合法返回值。
-- **`pullModels: false` 与"拉取失败"行为一致**：都退化为纯手动模式。
-  这是"能拉就用拉的，拉不到退化成手动"，不是二选一。
-- 拉取结果的网络失败只 `logger.warn`，不 `markConfigStatus(false)`。
-  若抛错，`BasePlatformClient.isAvailable()` 会把这条 config 标记为不可用，
-  后续真实请求反而撞 `NOT_AVAILABLE_CONFIG`——比空列表更糟。
+- **`pullModels: false` 与"拉取失败"行为一致**，均退化为纯手动模式。
+- 拉取失败只记录 `logger.warn`，不调用 `markConfigStatus(false)`。若在此抛出，
+  `BasePlatformClient.isAvailable()` 会将配置标记为不可用，后续请求将触发
+  `NOT_AVAILABLE_CONFIG`，比返回空列表更不利。
 
 ### 零模型是合法状态（已核对 core 源码）
 
@@ -166,8 +165,7 @@ return models   // → []
 `string`/`number`/`boolean`/const union/multiset，嵌套 object 会让整张表
 静默退回 `SchemaGroup`。
 
-不提供 `additionalModels` → `modelOverrides` 的迁移层：这是新包，
-没有存量用户。
+不提供 `additionalModels` → `modelOverrides` 的迁移层：本包无存量用户。
 
 ---
 
@@ -179,23 +177,22 @@ return models   // → []
 
 **否掉理由**：协议与协议之间的差异不止 wire 格式——缓存策略、错误重试、
 usage 语义、tool call 表达、thinking 块的签名回传都不同。单协议实例能保证
-requester、错误计数、并发池、缓存全部是单一语义；多协议则需要在运行时
-"猜这个模型该走哪条 wire"，而且 `ModelInfo` 没有协议字段（见 §7），
-协议只能存在 requester 侧，等于给每个请求加一次查表。
+requester、错误计数、并发池与缓存均为单一语义。多协议则需要在运行时判断每个
+模型走哪条 wire；而 `ModelInfo` 没有协议字段（见 §7），协议只能存在于 requester
+侧，等于每个请求增加一次查表。
 
 **替代**：`protocol` 枚举 + 多实例。用户起名 `bailian` / `bailian-claude`。
 
-**曾经考虑并否掉的折中**：勾选多个协议后自动注册
-`custom-chat` / `custom-messages` 之类派生 platform 名。理由：名字丑陋且
-不受用户控制，而 `reusable` 已经允许用户自己起名，不必绕。
+**曾考虑的折中**：勾选多个协议后自动注册 `custom-chat` / `custom-messages`
+之类派生 platform 名。否掉理由：名称不可控，而 `reusable` 已允许用户自行命名。
 
 ### 4.2 ❌ 用 models.dev 的供应商归属预测上游
 
 **曾考虑**：`providerPreset`（按端点 host 反查 models.dev 的 provider slug，
 用 `alibaba-cn` 的模型清单当种子，或在同一个 id 存在于多个 provider 时择优）。
 
-**否掉理由**：这是对用户上游做预测，而预测毫无意义——catalog 记录的是
-"供应商对外提供什么"，既不保证"这个端点能服务"，也不保证"这把 key 有权访问"。
+**否掉理由**：这属于对上游的预测。catalog 记录的是"供应商对外提供什么"，
+既不保证该端点能服务，也不保证该 key 有权访问。
 更糟的是百炼实测：`alibaba-cn` 的 80 条清单里混着
 `qwen3-asr-flash`（`type: transcription`）、`qwen3-omni-flash-realtime`
 （`type: realtime`）这类**不可能通过 Anthropic wire 调用**的模型。
@@ -214,9 +211,9 @@ requester、错误计数、并发池、缓存全部是单一语义；多协议�
 后者借前者的列表。
 
 **否掉理由**：同上，属于对上游的预测。而且百炼实测表明两个端点服务的
-**确实是同一批 qwen id**，用户可以用
+**是同一批 qwen id**，用户可以用
 `modelsURL: https://dashscope.aliyuncs.com/compatible-mode/v1/models`
-精确达成——`modelsURL` 这个字段就是为"列表在别处"准备的。不需要隐式共享。
+精确达成。`modelsURL` 即为此场景设计，无需隐式共享。
 
 **唯一跨实例共享的是 catalog**（元数据索引），因为它描述的是模型本身的
 属性，与端点无关。
@@ -389,8 +386,8 @@ messages  https://dashscope.aliyuncs.com/apps/anthropic/v1
 ### 6.3 `/v1` 探测修正（`modelsProbe`）
 
 `base/models` 404 而 `base/v1/models` 200 时，把 base 修正为带 `/v1`。
-这是唯一保留的"自动修正"，因为它解决的是"用户少打一层路径"这一真实错误，
-而不是对上游能力的预测。仅在 `models` 请求路径上探测，不猜测端点语义。
+这是唯一保留的自动修正：它针对"地址少写一层"这一输入错误，而非对上游能力的
+预测。仅在 `models` 请求路径上探测，不猜测端点语义。
 
 ### 6.4 请求按协议分发
 
@@ -640,7 +637,8 @@ catalog 只剥 `-YYYYMMDD` 而漏掉 `-YYYY-MM-DD`（导致整批模型掉进 20
 ### 图片输入
 
 `scripts/vision.cjs` 把一张 `image_url` content part 直接喂给模型，绕过 koishi 的
-元素拦截器（那条路径只对不支持图片的模型打 warn，不拦），所以测的就是 wire 本身：
+元素拦截器（该路径对不支持图片的模型仅发出警告，不做拦截），因此测的是 wire
+本身：
 
 | 实例 | 结果 |
 |---|---|
@@ -707,7 +705,7 @@ user      tool_result tool_use_id=toolu_56edea49... "<skill_content name=\"agent
 
 **结论**：catalog 命中率约 58%，未命中的主体是端点上"顺带列出"的非对话模型。
 这些模型在 ChatLuna 里一律被登记成 `ModelType.llm`（catalog 未命中时无法判断
-类型），选中它们会失败——这是**已知并接受**的行为，因为：
+类型），选中后请求会失败。这是**已知并接受**的行为，原因如下：
 判断类型只能靠名字猜测，而本项目明确禁止新增启发式（AGENTS.md）。用户可用
 `modelOverrides` 显式标注类型，或用 `blacklistModels` 过滤。
 
@@ -719,7 +717,7 @@ user      tool_result tool_use_id=toolu_56edea49... "<skill_content name=\"agent
   或 `{models: [...]}`"。若将来需要更多形态，在 §5.4 的归一化里扩展，
   不在匹配阶段打补丁。
 - **运行时缓存不校验内容新旧的语义**：只比 `fetchedAt`。若用户网络长期失败，
-  缓存会一直停在最后一次成功的时间点——这是预期行为。
+  缓存会停在最后一次成功的时间点，属预期行为。
 - **`protocol` 变更需要用户重建实例**：同一 `platform` 下换协议相当于换
   一个适配器。不做热切换。
 - **未实现 gemini 协议**：第 4 套 wire + 大量变体展开（分辨率后缀、
