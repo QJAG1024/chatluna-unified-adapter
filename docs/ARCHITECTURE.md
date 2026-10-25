@@ -665,6 +665,7 @@ catalog 只剥 `-YYYYMMDD` 而漏掉 `-YYYY-MM-DD`（导致整批模型掉进 20
 | 长消息（18k 字符） | 正常回复，请求体 126 KB，裁剪未误伤 |
 | 并发三条 | 全部按序返回 1 / 2 / 3 |
 | 无效 key | 上游 403 原文保留，抛 `ChatLunaError:103` |
+| Agent 模式（`chatluna-agent`，`defaultChatMode: plugin`） | 工具链往返完整：多轮 `tool_use` → `tool_result` → 再 `tool_use`，27 条消息的对话里共 10 条工具往返，全部正确 |
 
 请求体实测（`deepseek-v4.1-flash-1017`，修复前 vs 后）：
 
@@ -675,6 +676,31 @@ catalog 只剥 `-YYYYMMDD` 而漏掉 `-YYYY-MM-DD`（导致整批模型掉进 20
 
 修复后取的是同一模型另一条正常记录（`deepseek-v4.1-flash` 的 `o: 384000`）——
 说明 `output >= context` 的丢弃规则生效，脏记录被绕过而正常记录仍然命中。
+
+#### Agent 模式下的工具调用（`messages` wire）
+
+`chatluna-agent` 的 `plugin` 模式会给模型一份 10 个工具的清单
+（`trigger` / `file_*` / `grep` / `glob` / `bash` / `skill` / `task`）。
+沙盒里这些工具因 `workspace-write` 沙箱被拒，但**协议层的往返是完整的**：
+
+```
+assistant tool_use   id=toolu_d08aa316... name=bash input={"command":"echo hello-from-agent"}
+user      tool_result tool_use_id=toolu_d08aa316... "You do not have permission to call tool 'bash'..."
+assistant tool_use   id=toolu_f3076018... name=task input={"action":"run","agent":"general",...}
+user      tool_result tool_use_id=toolu_f3076018... "PERMISSION DENIED\n\ntask_id: ..."
+...
+assistant tool_use   id=toolu_56edea49... name=skill input={"name":"agentcli"}
+user      tool_result tool_use_id=toolu_56edea49... "<skill_content name=\"agentcli\">..."
+```
+
+三条结论：
+
+1. **`tool_use_id` 被准确回传**，Anthropic 的严格配对要求（每个 `tool_result`
+   必须引用一个存在的 `tool_use` id）得到满足——否则上游会直接 400。
+2. **工具 schema 是标准 JSON Schema**，`input_schema` 带 `required` 与
+   `properties`，由 `formatToolsToClaudeTools()` 生成（vendored 自上游）。
+3. **多轮工具链不断裂**：`task` 子代理调用被拒后，模型换用 `skill` 继续，
+   新的 `tool_use` 与历史的 `tool_result` 在同一次请求里共存。
 
 **结论**：catalog 命中率约 58%，未命中的主体是端点上"顺带列出"的非对话模型。
 这些模型在 ChatLuna 里一律被登记成 `ModelType.llm`（catalog 未命中时无法判断
